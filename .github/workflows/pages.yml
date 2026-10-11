@@ -1,4 +1,4 @@
-name: Deploy AI Agency Control Center to GitHub Pages
+name: Validate and deploy Mad Mode Web Studio
 
 on:
   push:
@@ -15,7 +15,59 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Verify website files and key sections
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          from html.parser import HTMLParser
+          import sys
+
+          required = {
+              "index.html": [
+                  "Mad Mode Web Studio",
+                  'id="services"',
+                  'id="work"',
+                  'id="pricing"',
+                  'id="contact"',
+                  'id="contactForm"',
+                  "mailto:mukeshmode2013mukeshmode@gmail.com",
+              ],
+              "dashboard.html": ["<html", "</html>"],
+          }
+
+          class BasicHTMLCheck(HTMLParser):
+              pass
+
+          failed = False
+          for filename, markers in required.items():
+              path = Path(filename)
+              if not path.exists():
+                  print(f"FAIL: missing {filename}")
+                  failed = True
+                  continue
+              source = path.read_text(encoding="utf-8")
+              try:
+                  BasicHTMLCheck().feed(source)
+              except Exception as exc:
+                  print(f"FAIL: HTML parser error in {filename}: {exc}")
+                  failed = True
+              missing = [marker for marker in markers if marker not in source]
+              if missing:
+                  print(f"FAIL: {filename} missing expected markers: {missing}")
+                  failed = True
+              else:
+                  print(f"PASS: basic checks for {filename}")
+          if failed:
+              sys.exit(1)
+          print("PASS: required website files and basic HTML checks")
+          PY
   deploy:
+    needs: validate
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
